@@ -1,0 +1,290 @@
+{
+  "name": "Tugas 6",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "6afacecc-1fce-49e5-ada2-b2963bd01f65",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "O3WfufeSD895r46i",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "{{ $json.from }}",
+                    "rightValue": "nurulfikri.ac.id",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "5e1bcd30-2966-4091-8a2f-0bd2aa955584"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Terpercaya"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "5f74473a-eb56-45fd-8213-0c255d67046b",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        304
+      ],
+      "id": "6dd34c56-b04b-4ce2-a690-e2cd76c26c1d",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RaiKW7ruUAk4UoXe",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Kamu adalah analis keamanan siber yang bertugas mendeteksi email phishing.\n\nAnalisis email berikut:\nPengirim: {{ $json.from }}\nSubjek: {{ $json.subject }}\nIsi email: {{ $json.textPlain || $json.snippet }}\n\nPeriksa permintaan informasi pribadi, peniruan identitas bank, urgensi palsu, dan tautan mencurigakan.\n\nBerikan skor bahaya dari 1 sampai 10. Skor 1 berarti risiko rendah dan skor 10 berarti risiko sangat tinggi.\n\nJawab dengan format:\nSkor: [angka 1-10]\nAlasan: [alasan singkat]\nKesimpulan: [Aman, Perlu Ditinjau, atau Phishing]\n\nJangan menghapus email atau melakukan tindakan selain memberikan analisis.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        96
+      ],
+      "id": "2168db09-4bc2-4cb8-bd01-d558f1a1f7e7",
+      "name": "Analisa Phishing AI"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n\n  const teks = [\n    data.text,\n    data.response,\n    data.output,\n    data.textResponse,\n    data.answer\n  ].find(value =>\n    typeof value === 'string' && value.trim() !== ''\n  );\n\n  if (!teks) {\n    throw new Error(\n      'Respons AI tidak ditemukan. Periksa OUTPUT node AI.'\n    );\n  }\n\n  // Membaca Skor: 3 maupun **Skor:** 3\n  const hasil = teks.match(\n    /\\*{0,2}\\s*Skor\\s*:?\\s*\\*{0,2}\\s*:?\\s*(10|[1-9])\\b/i\n  );\n\n  if (!hasil) {\n    throw new Error(\n      'Angka skor tidak ditemukan. Respons AI: ' + teks\n    );\n  }\n\n  return {\n    json: {\n      ...data,\n      skorRisiko: Number(hasil[1]),\n      responsAI: teks\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        96
+      ],
+      "id": "8e42b31c-6df9-4a59-92c6-cf912924fdce",
+      "name": "Ekstrak Skor Risiko"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6067a4fc-1b9e-4087-9cae-acbfa8b80019",
+              "leftValue": "={{ $json.skorRisiko }}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        992,
+        96
+      ],
+      "id": "177392db-2960-4774-941b-cfc39b880090",
+      "name": "Cek Skor Bahaya"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_8878443749406498512"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1488,
+        0
+      ],
+      "id": "f44b0496-d123-4cd1-a4e8-63e7277a7ca5",
+      "name": "Add label to message",
+      "webhookId": "52445307-d44f-432a-b4ad-2d65d0b12c6c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "O3WfufeSD895r46i",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "=⚠️ Tinjauan Email  Pengirim: {{ $('Gmail Trigger').item.json.from }} Subjek: {{ $('Gmail Trigger').item.json.subject }} Skor risiko: {{ $json.skorRisiko }}/10  Hasil analisis: {{ $json.responsAI }}  Silakan periksa email secara manual.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1488,
+        192
+      ],
+      "id": "a271c511-ff7f-42d7-b107-4ee9bd4f0b75",
+      "name": "Send a text message",
+      "webhookId": "ab68c575-a0cf-4c2b-b813-0da2c8553c35",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Analisa Phishing AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analisa Phishing AI",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisa Phishing AI": {
+      "main": [
+        [
+          {
+            "node": "Ekstrak Skor Risiko",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ekstrak Skor Risiko": {
+      "main": [
+        [
+          {
+            "node": "Cek Skor Bahaya",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Skor Bahaya": {
+      "main": [
+        [
+          {
+            "node": "Add label to message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "35d47191-1ea5-4d46-a26f-66ae3ce63412",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "NXdHczxJqmduUOci",
+  "tags": []
+}

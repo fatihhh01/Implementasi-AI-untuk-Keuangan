@@ -1,0 +1,375 @@
+{
+  "name": "Tugas 4 - Rekonsiliasi Otomatis",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -480,
+        -48
+      ],
+      "id": "314a02c2-b9bb-4885-b3e5-7c7ab5f013ef",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1yoD6W7FpjwarfqXWAcWh3cTx2Cx-ZDdeWj3VQoIL-Zs",
+          "mode": "list",
+          "cachedResultName": "cp dari Dummy Rekonsiliasi",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yoD6W7FpjwarfqXWAcWh3cTx2Cx-ZDdeWj3VQoIL-Zs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yoD6W7FpjwarfqXWAcWh3cTx2Cx-ZDdeWj3VQoIL-Zs/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -256,
+        -48
+      ],
+      "id": "a2217c0f-347c-42b5-8711-ac5851ab1296",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SMQsYNUGioIRdeDQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst results = [];\n\nfor (const item of $input.all()) {\n  const json = item.json;\n\n  const tipe = json['Tipe Transaksi'];\n  if (\n    tipe !== 'Pembayaran' &&\n    tipe !== 'Pengeluaran' &&\n    tipe !== 'Penerimaan'\n  ) {\n    continue;\n  }\n\n  const rawDate = (json['Tanggal Transaksi'] || '')\n    .toString().trim();\n  const dateParts = rawDate.split('/');\n  if (dateParts.length !== 3) continue;\n\n  const cleanDate =\n    `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;\n\n  const rawAmount =\n    (json['Jumlah (IDR)'] || '0').toString();\n  const cleanAmount = parseInt(\n    rawAmount.replace(/[^0-9]/g, ''), 10\n  );\n\n  const matchKey = `${cleanDate}_${cleanAmount}`;\n\n  results.push({\n    json: {\n      ...json,\n      clean_date: cleanDate,\n      clean_amount: cleanAmount,\n      match_key: matchKey,\n      sumber: 'Internal'\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -48
+      ],
+      "id": "6110d1af-6ae7-43fe-9ef7-479bdc52e94a",
+      "name": "Clean Internal Data"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "1n17n_CssV_KID9OTvC8AsNGZCKFs_Ryf9unzIYxA-8k",
+          "mode": "list",
+          "cachedResultName": "cp dari Dummy Rekonsiliasi - Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1n17n_CssV_KID9OTvC8AsNGZCKFs_Ryf9unzIYxA-8k/edit?usp=drivesdk"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        176
+      ],
+      "id": "4c26f7fe-465c-4104-bffc-fbca6cd7bdd9",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PqTJvd5D9Le4VSpT",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -96,
+        176
+      ],
+      "id": "dd2dac38-ecb1-4b42-8fe3-76604b96e0a2",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst results = [];\n\nfor (const item of $input.all()) {\n  const json = item.json;\n\n  // Ubah tanggal Excel menjadi YYYY-MM-DD\n  const rawDate = json['Tanggal Bank'];\n  let cleanDate = '';\n\n  if (typeof rawDate === 'number') {\n    const date = new Date(Date.UTC(1899, 11, 30) + rawDate * 86400000);\n    cleanDate = date.toISOString().slice(0, 10);\n  } else {\n    const dateParts = String(rawDate || '').trim().split('/');\n    if (dateParts.length === 3) {\n      cleanDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;\n    }\n  }\n\n  if (!cleanDate) continue;\n\n  // Bersihkan nominal\n  const rawAmount = String(json['Jumlah (IDR)'] ?? '0');\n  const cleanAmount = parseInt(rawAmount.replace(/[^0-9]/g, ''), 10);\n\n  if (Number.isNaN(cleanAmount)) continue;\n\n  results.push({\n    json: {\n      ...json,\n      clean_date: cleanDate,\n      clean_amount: cleanAmount,\n      match_key: `${cleanDate}_${cleanAmount}`,\n      sumber: 'Bank'\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        176
+      ],
+      "id": "a3e7235e-a96d-4bbf-a7f0-07027facbe34",
+      "name": "Clean Bank Data",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        416,
+        32
+      ],
+      "id": "466da2f6-80ae-4503-b7ea-48b787b7dbfc",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nconst groups = {};\n\nfor (const item of items) {\n  const json = item.json;\n  const key = json.match_key;\n\n  if (!key) continue;\n\n  if (!groups[key]) {\n    groups[key] = {\n      internal: [],\n      bank: []\n    };\n  }\n\n  if (json.sumber === 'Internal') {\n    groups[key].internal.push(json);\n  } else if (json.sumber === 'Bank') {\n    groups[key].bank.push(json);\n  }\n}\n\nconst results = [];\n\nfor (const [key, group] of Object.entries(groups)) {\n  const internal = group.internal;\n  const bank = group.bank;\n\n  let status;\n  let pesan;\n  let prioritas;\n\n  if (internal.length > 0 && bank.length > 0) {\n    status = 'MATCHED';\n    pesan = 'Transaksi cocok antara data Internal dan Bank.';\n    prioritas = 'Rendah';\n  } else if (internal.length > 0) {\n    status = 'MISSING IN BANK';\n    pesan = 'Transaksi ada di Internal tetapi tidak ditemukan di Bank.';\n    prioritas = 'Tinggi';\n  } else {\n    status = 'UNRECORDED INTERNAL';\n    pesan = 'Transaksi ada di Bank tetapi tidak ditemukan di Internal.';\n    prioritas = 'Tinggi';\n  }\n\n  const data = internal[0] || bank[0];\n\n  results.push({\n    json: {\n      Tanggal: data.clean_date,\n      Nominal: data.clean_amount,\n      Status: status,\n      Pesan: pesan,\n      Prioritas: prioritas,\n      Internal_ID: internal.map(x => x['ID Referensi'] || '').join(', '),\n      Bank_ID: bank.map(x => x['ID Transaksi Bank'] || '').join(', '),\n      Deskripsi: data['Deskripsi Transaksi'] || '',\n      Match_Key: key,\n      Sources: [\n        ...(internal.length ? ['Internal'] : []),\n        ...(bank.length ? ['Bank'] : [])\n      ].join(', ')\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        32
+      ],
+      "id": "4ea4a1d6-4208-4736-bebb-f6a6a489ed1a",
+      "name": "Analisa Status"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c57c8f3a-640e-401a-b9f0-6de7f9738abe",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "MATCHED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        784,
+        32
+      ],
+      "id": "83248835-6687-46bf-9874-4987295609c1",
+      "name": "Cek Status Match"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        176
+      ],
+      "id": "67e4a448-8d5f-442a-afdc-15dae4eff96d",
+      "name": "Tunggu 5 Menit",
+      "webhookId": "1b5b7e6d-e1d6-46a6-905f-7bd3efb1a323"
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "=🚨 **LAPORAN SELISIH KEUANGAN**   \n📅 Tanggal: {{ $json.Tanggal }}  \n💰 Nominal: Rp {{ $json.Nominal }}   \n⚠️ **Status: {{ $json.Status }}**  \n📝 Ket: {{ $json.Pesan }}   \n🔍 Ref Internal: {{ $json.Internal_ID }}  \n🏦 Ref Bank: {{ $json.Bank_ID }}  \nℹ️ Desc: {{ $json.Deskripsi }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1424,
+        176
+      ],
+      "id": "fe13ce8d-3d25-458c-983f-ca31ea1dfdd1",
+      "name": "Kirim Laporan Data Tidak Cocok",
+      "webhookId": "cb45a58d-c9de-4853-b2e1-8456fcc424aa",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "=🚨 **LAPORAN SELISIH KEUANGAN**  \n📅 Tanggal: {{ $json.Tanggal }} \n💰 Nominal: Rp {{ $json.Nominal }}  \n⚠️ **Status: {{ $json.Status }}** \n📝 Ket: {{ $json.Pesan }}  \n🔍 Ref Internal: {{ $json.Internal_ID }} 🏦 Ref Bank: {{ $json.Bank_ID }} \nℹ️ Desc: {{ $json.Deskripsi }}  ",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        -16
+      ],
+      "id": "a352e8b2-699c-4ac1-9bc9-1163d487d286",
+      "name": "Kirim Laporan Data Cocok",
+      "webhookId": "1d00f603-059e-485e-b397-c95a9d70b36d",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Clean Internal Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Internal Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Clean Bank Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Bank Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Analisa Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisa Status": {
+      "main": [
+        [
+          {
+            "node": "Cek Status Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tunggu 5 Menit": {
+      "main": [
+        [
+          {
+            "node": "Kirim Laporan Data Tidak Cocok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Status Match": {
+      "main": [
+        [
+          {
+            "node": "Kirim Laporan Data Cocok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tunggu 5 Menit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6b81b472-281b-4fde-b3d6-28b2170caf84",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "bTWUjHkwTUOC92JK",
+  "tags": []
+}

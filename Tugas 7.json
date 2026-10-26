@@ -1,0 +1,272 @@
+{
+  "name": "Tugas 7",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "83c2fd6f-8917-47ab-b43c-d1385e187f59",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14zcBRn00hsdU98qNQrjhBqnapqnusJElXijtLKpfuTc",
+          "mode": "list",
+          "cachedResultName": "cp dari Data Dummy Catatan Keuangan",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14zcBRn00hsdU98qNQrjhBqnapqnusJElXijtLKpfuTc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14zcBRn00hsdU98qNQrjhBqnapqnusJElXijtLKpfuTc/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "70d60302-2bdc-4ee3-bb38-1683e684199b",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SMQsYNUGioIRdeDQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n\nconst now = new Date();\nconst end = new Date(now);\nend.setHours(23, 59, 59, 999);\n\nconst start = new Date(now);\nstart.setDate(start.getDate() - 6);\nstart.setHours(0, 0, 0, 0);\n\nconst expenses = items\n  .map(item => item.json)\n  .filter(row => {\n    const parts = String(row.Tanggal || '').split('/');\n    if (parts.length !== 3) return false;\n\n    const [day, month, year] = parts.map(Number);\n    const date = new Date(year, month - 1, day);\n\n    return date >= start && date <= end;\n  });\n\nconst formatRupiah = value =>\n  Number(String(value || 0).replace(/\\D/g, ''))\n    .toLocaleString('id-ID');\n\nconst laporan = expenses.length\n  ? expenses.map((row, i) =>\n      `${i + 1}. Tanggal: ${row.Tanggal}\\n` +\n      `Kategori: ${row.Kategori}\\n` +\n      `Deskripsi: ${row.Deskripsi}\\n` +\n      `Metode Pembayaran: ${row['Metode Pembayaran']}\\n` +\n      `Jumlah: Rp${formatRupiah(row['Jumlah (IDR)'])}\\n` +\n      `Penerima: ${row.Penerima}`\n    ).join('\\n\\n')\n  : 'Tidak ada pengeluaran dalam 7 hari terakhir.';\n\nreturn [{\n  json: {\n    hasExpenses: expenses.length > 0,\n    jumlahTransaksi: expenses.length,\n    laporanPengeluaran: laporan\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "8126cff2-f64c-46eb-af5a-da559abb1e7a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d81d5482-ef20-4860-95e1-8245e1f51a85",
+              "leftValue": "={{ $json.hasExpenses }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        16
+      ],
+      "id": "cb9fd880-9c00-461b-94ff-12f4be7ecde3",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\nKamu adalah analis keuangan pribadi.\n\nAnalisis data pengeluaran berikut untuk periode 7 hari terakhir.\n\nData pengeluaran:\n{{ $json.laporanPengeluaran }}\n\nTugas:\n1. Ringkas total pengeluaran dan jumlah transaksi.\n2. Jelaskan kategori belanja yang paling banyak menghabiskan uang.\n3. Analisis kebiasaan belanja berdasarkan data yang tersedia.\n4. Berikan tepat satu saran penghematan yang konkret dan realistis.\n\nGunakan bahasa Indonesia yang sederhana dan mudah dipahami.\nGunakan angka sesuai data, jangan mengarang transaksi atau nominal.\nJika data tidak cukup untuk menyimpulkan sesuatu, jelaskan keterbatasannya.\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        832,
+        -80
+      ],
+      "id": "0d9bb941-f25f-44d9-882a-3df74c2208a5",
+      "name": "Analisis Kebiasaan Belanja"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        832,
+        128
+      ],
+      "id": "771cfeaa-7149-4adf-9c32-2ead8ec07f18",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RaiKW7ruUAk4UoXe",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "Nihil — tidak ada pengeluaran dalam 7 hari terakhir. Tidak ada analisis AI yang dibuat.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        816,
+        336
+      ],
+      "id": "11382847-4c60-4e13-9068-353df1cf7e5e",
+      "name": "Kirim Notifikasi Nihil",
+      "webhookId": "9b0cfc1a-a07b-46e0-8c6e-2d5336c73938",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        -80
+      ],
+      "id": "624af1cf-7983-476f-a0a5-16538ba74f4e",
+      "name": "Send a text message",
+      "webhookId": "6e9b7b93-a4b1-4081-ade2-b7b11cdb8e4d",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analisis Kebiasaan Belanja",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Kirim Notifikasi Nihil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analisis Kebiasaan Belanja",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisis Kebiasaan Belanja": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "79cdfd71-4330-496d-93bd-1ffe44c76332",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "uX2fm5rn8cFqU9hx",
+  "tags": []
+}

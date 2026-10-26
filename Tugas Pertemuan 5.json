@@ -1,0 +1,325 @@
+{
+  "name": "Tugas Pertemuan 5",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        368,
+        80
+      ],
+      "id": "7628393d-45a9-473c-91fe-93bba9e24a88",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -192,
+        80
+      ],
+      "id": "2f390877-13b1-473a-b9c1-68885d834ad5",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Kamu adalah asisten analis berita keuangan.\n\nBuat ringkasan berjudul \"5 Poin Utama Pergerakan Pasar Hari Ini\" berdasarkan artikel yang diberikan.\n\nAturan:\n1. Buat tepat 5 poin utama.\n2. Gunakan hanya informasi dari artikel.\n3. Jangan mengarang angka, tanggal, atau kondisi pasar.\n4. Gunakan bahasa Indonesia yang sederhana.\n5. Jika informasi tidak cukup untuk membuat 5 poin, rangkum informasi yang tersedia tanpa mengarang.\n6. Sebutkan nama perusahaan atau sumber berita jika relevan.\n\nKUMPULAN BERITA:\n{{ $json.text.join('\\n\\n') }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1168,
+        272
+      ],
+      "id": "310409b8-882f-4bbc-a520-e67e67c41663",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        272
+      ],
+      "id": "94f160d9-50fc-47c7-9370-1477194760ad",
+      "name": "Send a text message",
+      "webhookId": "7775d26a-ab78-4568-b211-66b5c8d587fa",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1168,
+        448
+      ],
+      "id": "8fd21220-53c7-4d8a-9a73-091f723d638d",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RaiKW7ruUAk4UoXe",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://www.cnbcindonesia.com/market/rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "45467f3b-c5ba-4ec9-b995-2116d280e581",
+      "name": "Ambil Berita CNBC Harian"
+    },
+    {
+      "parameters": {
+        "url": "https://finance.detik.com/rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        160
+      ],
+      "id": "c13a85aa-1f75-4811-8c90-da69dd54403c",
+      "name": "Ambil Berita Detik Finansial"
+    },
+    {
+      "parameters": {
+        "maxItems": 10
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        528,
+        80
+      ],
+      "id": "3154b1ae-19d8-4a66-8004-375f28680ac9",
+      "name": "Pilih 10 Berita Terbaru"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        752,
+        80
+      ],
+      "id": "eabaf8ee-b6ff-45ac-9776-4c1af09df0e7",
+      "name": "Ambil Halaman Artikel Keuangan"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "text",
+              "cssSelector": "body"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        976,
+        80
+      ],
+      "id": "373ad8d0-ea30-4b8d-bcbc-e8a5e479a04f",
+      "name": "Ekstrak Isi Berita Finansial"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        80
+      ],
+      "id": "85d1f336-bd6f-4c9b-ba1a-507a6b55ed1a",
+      "name": "Satukan Konteks Berita Harian"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Pilih 10 Berita Terbaru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Ambil Berita CNBC Harian",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ambil Berita Detik Finansial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Berita CNBC Harian": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Berita Detik Finansial": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Pilih 10 Berita Terbaru": {
+      "main": [
+        [
+          {
+            "node": "Ambil Halaman Artikel Keuangan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Halaman Artikel Keuangan": {
+      "main": [
+        [
+          {
+            "node": "Ekstrak Isi Berita Finansial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ekstrak Isi Berita Finansial": {
+      "main": [
+        [
+          {
+            "node": "Satukan Konteks Berita Harian",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Satukan Konteks Berita Harian": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "dc0be470-5b13-4ec3-bddc-abe7d6f13910",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "I95hXhrQX0QANgWs",
+  "tags": []
+}
