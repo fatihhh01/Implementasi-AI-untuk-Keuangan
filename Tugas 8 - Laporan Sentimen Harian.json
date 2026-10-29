@@ -1,0 +1,201 @@
+{
+  "name": "Tugas 8 - Laporan Sentimen Harian",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8475c026-4965-4d3c-95fd-defba2c4c1d0",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1rORFRq7DnDUMrt1HYNSZ8R0ga1Q4Imtk3FhMJpxu4vo",
+          "mode": "list",
+          "cachedResultName": "Data Sentimen Crypto",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1rORFRq7DnDUMrt1HYNSZ8R0ga1Q4Imtk3FhMJpxu4vo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1rORFRq7DnDUMrt1HYNSZ8R0ga1Q4Imtk3FhMJpxu4vo/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "ab8b900c-2750-4623-854a-5b7247574d63",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SMQsYNUGioIRdeDQ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(item => item.json);\n\nlet positive = 0;\nlet negative = 0;\nlet neutral = 0;\n\nfor (const row of rows) {\n  const sentiment = String(row.sentiment || '').trim().toLowerCase();\n\n  if (sentiment === 'positive') positive++;\n  else if (sentiment === 'negative') negative++;\n  else if (sentiment === 'neutral') neutral++;\n}\n\nreturn [{\n  json: {\n    total_data: rows.length,\n    positive,\n    negative,\n    neutral,\n    tanggal_laporan: new Date().toISOString().slice(0, 10)\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "7f7a3c67-fc22-4b8f-9058-a294be006acc",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\nBertindaklah sebagai analis sentimen pasar cryptocurrency.\n\nBerdasarkan data berikut:\n- Tanggal laporan: {{ $json.tanggal_laporan }}\n- Total postingan: {{ $json.total_data }}\n- Sentimen positif: {{ $json.positive }}\n- Sentimen negatif: {{ $json.negative }}\n- Sentimen netral: {{ $json.neutral }}\n\nBuat laporan sentimen harian Bitcoin (BTC) dan Ethereum (ETH) dalam bahasa Indonesia yang sederhana.\n\nIsi laporan:\n1. Ringkasan kondisi sentimen.\n2. Jumlah masing-masing sentimen.\n3. Kesimpulan singkat tentang suasana pasar.\n4. Saran agar pembaca tetap berhati-hati dalam mengambil keputusan investasi.\n\nJangan mengarang data harga atau pergerakan pasar yang tidak tersedia. Jelaskan bahwa hasil ini berdasarkan postingan yang dianalisis.\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        672,
+        0
+      ],
+      "id": "53ad21d7-1d5a-46b3-a0dd-f1ec8e118c4e",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        208
+      ],
+      "id": "17fe0ba9-5ef0-4a16-b737-1aa17c24e431",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RaiKW7ruUAk4UoXe",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "a8610ccf-58db-488f-9270-dd5d6c45d94e",
+      "name": "Send a text message",
+      "webhookId": "830809fc-9616-4f91-9194-db5170465e83",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "41883552-1f1f-4bed-892a-d403cb7ea91d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "GydwcmvQ8ytNxdaJ",
+  "tags": []
+}

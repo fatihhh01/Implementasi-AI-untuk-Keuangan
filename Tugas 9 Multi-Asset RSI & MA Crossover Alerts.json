@@ -1,0 +1,353 @@
+{
+  "name": "Tugas 9 Multi-Asset RSI & MA Crossover Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "11f051ae-f439-4f0e-baf0-52788180bde0",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "\n{\n  \"symbols\": [\n    \"AAPL\",\n    \"TSLA\",\n    \"MSFT\"\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "eab3059d-f5cd-44be-822d-37ba1d7bdc9b",
+      "name": "Watchlist"
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{$json.symbols[0]}}?range=1y&interval=1d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        -144
+      ],
+      "id": "29b5b2cc-3599-43f4-a23d-b075eba20ce9",
+      "name": "mbil Data AAPL"
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{$json.symbols[1]}}?range=1y&interval=1d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        32
+      ],
+      "id": "d6dc2aff-06e7-498a-a704-890aca6ccd07",
+      "name": "Ambil Data TSLA"
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{$json.symbols[2]}}?range=1y&interval=1d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        224
+      ],
+      "id": "deb1d6b2-13c2-411a-9639-ccf40dde88c8",
+      "name": "Ambil Data MSFT"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        784,
+        16
+      ],
+      "id": "945ad4a5-83d8-4b8d-89c3-8fc87c15d94e",
+      "name": "Gabungkan Data Saham"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n\nreturn items.map(item => {\n  const result = item.json.chart?.result?.[0];\n\n  if (!result) {\n    return {\n      json: {\n        symbol: \"UNKNOWN\",\n        error: \"Data saham tidak ditemukan\"\n      }\n    };\n  }\n\n  const symbol = result.meta.symbol;\n  const price = result.meta.regularMarketPrice;\n  const rawClose = result.indicators.quote[0].close;\n  const close = rawClose.filter(v => v !== null && Number.isFinite(v));\n\n  function sma(values, period) {\n    if (values.length < period) return null;\n    const lastValues = values.slice(-period);\n    return lastValues.reduce((sum, v) => sum + v, 0) / period;\n  }\n\n  function rsi(values, period = 14) {\n    if (values.length <= period) return null;\n\n    const changes = [];\n    for (let i = 1; i < values.length; i++) {\n      changes.push(values[i] - values[i - 1]);\n    }\n\n    const recent = changes.slice(-period);\n    const gains = recent.filter(v => v > 0);\n    const losses = recent.filter(v => v < 0).map(v => Math.abs(v));\n\n    const avgGain = gains.reduce((a, b) => a + b, 0) / period;\n    const avgLoss = losses.reduce((a, b) => a + b, 0) / period;\n\n    if (avgLoss === 0) return avgGain === 0 ? 50 : 100;\n\n    const rs = avgGain / avgLoss;\n    return 100 - (100 / (1 + rs));\n  }\n\n  const sma50 = sma(close, 50);\n  const sma200 = sma(close, 200);\n  const rsi14 = rsi(close);\n\n  const signals = [];\n\n  if (sma50 !== null && sma200 !== null && sma50 > sma200) {\n    signals.push(\"Golden Cross (MA50 > MA200)\");\n  }\n\n  if (rsi14 !== null && rsi14 < 30) {\n    signals.push(\"RSI Oversold\");\n  }\n\n  return {\n    json: {\n      symbol,\n      price,\n      sma50,\n      sma200,\n      rsi14,\n      signals,\n      alert: signals.length > 0\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        32
+      ],
+      "id": "afe3b121-8e8c-45a6-8eb3-b1f010ab057a",
+      "name": "Hitung Indikator Saham"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "c2f91ef9-b32a-4f40-bcb7-34d501deeb92",
+              "leftValue": "={{ $json.alert }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1216,
+        32
+      ],
+      "id": "44db8caa-d41b-4261-9456-b8da7397955e",
+      "name": "Cek Sinyal Saham"
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "={{\n  \"🚨 ALERT SAHAM\\n\\n\" +\n  \"Saham: \" + $json.symbol + \"\\n\" +\n  \"Harga: $\" + $json.price + \"\\n\" +\n  \"SMA 50: \" + $json.sma50.toFixed(2) + \"\\n\" +\n  \"SMA 200: \" + $json.sma200.toFixed(2) + \"\\n\" +\n  \"RSI 14: \" + $json.rsi14.toFixed(2) + \"\\n\" +\n  \"Sinyal: \" + $json.signals.join(\", \")\n}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        -64
+      ],
+      "id": "15bfdab0-b26b-429e-8668-9297f713e15c",
+      "name": "Send a text message",
+      "webhookId": "b29dfc08-9c40-4228-a8e4-de4245534dab",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?range=5d&interval=5m",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        288
+      ],
+      "id": "a2608670-02f7-4490-8797-8b348ae46cf5",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst result = $input.first().json.chart?.result?.[0];\n\nif (!result) {\n  throw new Error(\"Data BTC/USD tidak ditemukan\");\n}\n\nconst quote = result.indicators.quote[0];\nconst closes = quote.close.filter(\n  v => v !== null && Number.isFinite(v)\n);\n\nfunction sma(values, period) {\n  if (values.length < period) return null;\n\n  const recent = values.slice(-period);\n  return recent.reduce((sum, v) => sum + v, 0) / period;\n}\n\nfunction rsi(values, period = 14) {\n  if (values.length <= period) return null;\n\n  const changes = [];\n\n  for (let i = 1; i < values.length; i++) {\n    changes.push(values[i] - values[i - 1]);\n  }\n\n  const recent = changes.slice(-period);\n  const gains = recent.filter(v => v > 0);\n  const losses = recent\n    .filter(v => v < 0)\n    .map(v => Math.abs(v));\n\n  const avgGain =\n    gains.reduce((a, b) => a + b, 0) / period;\n  const avgLoss =\n    losses.reduce((a, b) => a + b, 0) / period;\n\n  if (avgLoss === 0) {\n    return avgGain === 0 ? 50 : 100;\n  }\n\n  const rs = avgGain / avgLoss;\n  return 100 - (100 / (1 + rs));\n}\n\nconst price = result.meta.regularMarketPrice;\nconst sma50 = sma(closes, 50);\nconst sma200 = sma(closes, 200);\nconst rsi14 = rsi(closes);\n\nconst signals = [];\n\nif (sma50 !== null && sma200 !== null) {\n  if (sma50 > sma200) {\n    signals.push(\"Golden Cross (MA50 > MA200)\");\n  } else if (sma50 < sma200) {\n    signals.push(\"Death Cross (MA50 < MA200)\");\n  }\n}\n\nif (rsi14 !== null && rsi14 < 30) {\n  signals.push(\"RSI Oversold\");\n}\n\nif (rsi14 !== null && rsi14 > 70) {\n  signals.push(\"RSI Overbought\");\n}\n\nreturn [{\n  json: {\n    symbol: result.meta.symbol,\n    price,\n    sma50,\n    sma200,\n    rsi14,\n    signals,\n    alert: signals.length > 0\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        288
+      ],
+      "id": "dd0c08aa-2c03-4d18-b679-96308858f92b",
+      "name": "Hitung Indikator BTC"
+    },
+    {
+      "parameters": {
+        "chatId": "6198150300",
+        "text": "=🚨 ALERT BTC/USD  Harga: {{ $json.price }} USD  SMA50: {{ $json.sma50 }} SMA200: {{ $json.sma200 }} RSI14: {{ $json.rsi14 }}  Sinyal: {{ $json.signals.join(\", \") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        288
+      ],
+      "id": "8ba1808e-2b1f-4b8e-97cb-a21407bd87f9",
+      "name": "Send a text message1",
+      "webhookId": "da062358-a2df-4077-ba19-d745d11b86b8",
+      "credentials": {
+        "telegramApi": {
+          "id": "fK1O7sFACxtqsFd8",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watchlist": {
+      "main": [
+        [
+          {
+            "node": "mbil Data AAPL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ambil Data TSLA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ambil Data MSFT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Data MSFT": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Data Saham",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "mbil Data AAPL": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Data Saham",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Data TSLA": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Data Saham",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Gabungkan Data Saham": {
+      "main": [
+        [
+          {
+            "node": "Hitung Indikator Saham",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hitung Indikator Saham": {
+      "main": [
+        [
+          {
+            "node": "Cek Sinyal Saham",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Sinyal Saham": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Hitung Indikator BTC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hitung Indikator BTC": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ee25af2d-2070-4114-8a57-8aadc479b40b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "Y0odPYVf41Z2YWwc",
+  "tags": []
+}
